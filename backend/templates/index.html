@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hairfall Prediction</title>
+  <style>
+    body {
+      background: #1e1e1e;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+    }
+    .container {
+      background: linear-gradient(135deg, #00feba, #5b548a);
+      border-radius: 20px;
+      padding: 30px;
+      width: 400px;
+      text-align: center;
+    }
+    .search {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .search input[type="file"] {
+      display: none;
+    }
+    label {
+      background: #ebfffc;
+      color: #333;
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button {
+      padding: 10px;
+      background: #ebfffc;
+      color: #333;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    img {
+      width: 100%;
+      max-height: 200px;
+      margin-top: 15px;
+      border-radius: 10px;
+      display: none;
+    }
+    .result {
+      margin-top: 20px;
+    }
+    .phase {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 10px;
+      transition: 0.3s ease;
+    }
+    .phase.active {
+      background: red;
+      font-weight: bold;
+    }
+    .error {
+      color: #ff4d4d;
+      margin-top: 10px;
+      display: none;
+    }
+    .loading {
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Hairfall Phase Detection</h2>
+    <div class="search">
+      <label for="file-upload">Choose Scalp Image</label>
+      <input type="file" id="file-upload" accept="image/*" />
+      <button onclick="predict()">Predict</button>
+    </div>
+    <img id="preview" />
+    <div class="loading">Analyzing...</div>
+    <div class="error"></div>
+    <div class="result">
+      <div class="phase" id="phase1">Phase 1 - <span id="phase1-prob">0%</span></div>
+      <div class="phase" id="phase2">Phase 2 - <span id="phase2-prob">0%</span></div>
+      <div class="phase" id="phase3">Phase 3 - <span id="phase3-prob">0%</span></div>
+    </div>
+  </div>
+
+  <script>
+    const fileUpload = document.getElementById('file-upload');
+    const preview = document.getElementById('preview');
+    const error = document.querySelector('.error');
+    const loading = document.querySelector('.loading');
+    const phaseIds = ['phase1', 'phase2', 'phase3'];
+
+    fileUpload.addEventListener('change', function () {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          preview.src = e.target.result;
+          preview.style.display = 'block';
+          phaseIds.forEach((id) => {
+            document.getElementById(id).classList.remove('active');
+            document.getElementById(id + '-prob').textContent = '0%';
+          });
+          error.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    async function predict() {
+      const file = fileUpload.files[0];
+      if (!file) {
+        error.textContent = 'Please select an image!';
+        error.style.display = 'block';
+        return;
+      }
+
+      loading.style.display = 'block';
+      error.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('image', file); // ✅ match Flask backend
+
+      try {
+        const res = await fetch('http://127.0.0.1:5000/predict', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const probs = data.phase_probabilities;
+
+        document.getElementById('phase1-prob').textContent = `${probs['Phase 1'].toFixed(1)}%`;
+        document.getElementById('phase2-prob').textContent = `${probs['Phase 2'].toFixed(1)}%`;
+        document.getElementById('phase3-prob').textContent = `${probs['Phase 3'].toFixed(1)}%`;
+
+        phaseIds.forEach((id) => document.getElementById(id).classList.remove('active'));
+        document.getElementById(`phase${data.phase}`).classList.add('active');
+      } catch (err) {
+        error.textContent = 'Error: ' + err.message;
+        error.style.display = 'block';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
